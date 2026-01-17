@@ -43,24 +43,15 @@ class GameScreen extends StatefulWidget {
 }
 
 class _GameScreenState extends State<GameScreen> {
-  // --- KONFIGURACJA ---
   int gridSize = 8;
   final bool isDebugging = false;
   String difficulty = 'easy';
   int currentLevelIndex = 1;
   bool isLoading = true;
-
-  // NOWE: Najwyższy odblokowany poziom (domyślnie 1)
   int maxUnlockedLevel = 1;
-
-  // --- TIMER ---
   Timer? _timer;
   Duration _elapsed = Duration.zero;
-
-  // --- DANE GRY ---
   List<CellModel> board = [];
-
-  // Historia ruchów
   List<List<CellModel>> _history = [];
 
   final List<Color> zoneColors = [
@@ -91,7 +82,7 @@ class _GameScreenState extends State<GameScreen> {
   // --- OBSŁUGA TIMERA ---
   void _startTimer() {
     _stopTimer(); // Upewniamy się, że nie ma dwóch timerów
-    // USUNIĘTO: setState(() { _elapsed = Duration.zero; }); <--- To kasowało czas!
+    //setState(() { _elapsed = Duration.zero; });
 
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return;
@@ -119,8 +110,7 @@ class _GameScreenState extends State<GameScreen> {
     _stopTimer();
     setState(() {
       isLoading = true;
-      _elapsed = Duration
-          .zero; // <--- PRZENIESIONO TUTAJ: Zerujemy czas tylko przy nowym poziomie
+      _elapsed = Duration.zero;
     });
 
     try {
@@ -236,7 +226,6 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _showWinDialog() {
-    // NOWE: Jeśli wygraliśmy na obecnym max poziomie, odblokuj następny
     if (currentLevelIndex == maxUnlockedLevel && maxUnlockedLevel < 50) {
       setState(() {
         maxUnlockedLevel++;
@@ -256,7 +245,7 @@ class _GameScreenState extends State<GameScreen> {
                 Navigator.of(context).pop();
                 _changeLevel(
                   1,
-                ); // To zadziała, bo maxUnlockedLevel został zwiększony
+                );
               },
               child: const Text("Next level"),
             ),
@@ -269,13 +258,9 @@ class _GameScreenState extends State<GameScreen> {
   void _changeLevel(int offset) {
     int newLevel = currentLevelIndex + offset;
 
-    // Walidacja zakresu
     if (newLevel < 1) newLevel = 1;
     if (newLevel > 50) newLevel = 50;
-
-    // NOWE: Nie pozwalaj przejść powyżej odblokowanego poziomu
     if (newLevel > maxUnlockedLevel) return;
-
     if (newLevel != currentLevelIndex) {
       _loadLevel(newLevel);
     }
@@ -283,7 +268,6 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Sprawdzamy czy możemy iść dalej (dla koloru strzałki)
     bool canGoNext =
         currentLevelIndex < maxUnlockedLevel && currentLevelIndex < 50;
 
@@ -325,19 +309,13 @@ class _GameScreenState extends State<GameScreen> {
             icon: const Icon(Icons.help_outline, color: Colors.blueAccent),
             tooltip: 'Help',
             onPressed: () async {
-              // <--- Dodaj 'async'
-
-              // 1. PAUZA: Zatrzymujemy czas
               _stopTimer();
 
-              // 2. CZEKAMY: Aplikacja czeka w tej linii, aż zamkniesz okno pomocy
               await Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const HelpScreen()),
               );
 
-              // 3. START: Wznawiamy czas (funkcja już nie zeruje licznika)
-              // Sprawdzamy też, czy gra nie została w międzyczasie wygrana/zakończona
               if (mounted && !board.isEmpty) {
                 _startTimer();
               }
@@ -346,7 +324,6 @@ class _GameScreenState extends State<GameScreen> {
           IconButton(
             icon: Icon(
               Icons.arrow_forward_ios,
-              // NOWE: Szara strzałka jeśli nie odblokowano następnego
               color: canGoNext ? Colors.black : Colors.grey[300],
             ),
             onPressed: canGoNext ? () => _changeLevel(1) : null,

@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'game_screen.dart'; // <--- Import potrzebny do nawigacji
+import 'game_screen.dart';
 
 class HelpScreen extends StatefulWidget {
-  // Nowy parametr: czy to pierwsze uruchomienie?
   final bool isFirstLaunch;
 
   const HelpScreen({super.key, this.isFirstLaunch = false});
@@ -15,8 +14,8 @@ class _HelpScreenState extends State<HelpScreen> {
   bool isPolish = true;
 
   final Map<String, String> plContent = {
-    'title': 'Witaj w Queens!', // Zmieniony tytuł na powitanie
-    'title_help': 'Jak grać?', // Tytuł w trakcie gry
+    'title': 'Witaj w Queens!',
+    'title_help': 'Jak grać?',
     'goal_header': 'Cel gry:',
     'goal_desc':
         'Musisz umieścić dokładnie jedną Królową (Gwiazdkę) w każdym wierszu, kolumnie i kolorowej strefie.',
@@ -34,7 +33,7 @@ class _HelpScreenState extends State<HelpScreen> {
         '• Kliknij raz: X (puste)\n• Kliknij dwa razy: Królowa (Gwiazdka)\n• Kliknij trzy razy: Wyczyść pole',
     'tip': 'Gra automatycznie zaznaczy na czerwono błędy.',
     'switch_btn': 'English',
-    'play_btn': 'GRAJ', // Nowy tekst
+    'play_btn': 'GRAJ',
   };
 
   final Map<String, String> enContent = {
@@ -55,7 +54,7 @@ class _HelpScreenState extends State<HelpScreen> {
         '• 1st Tap: X (mark as empty)\n• 2nd Tap: Queen (Star)\n• 3rd Tap: Clear cell',
     'tip': 'The game automatically highlights errors in red.',
     'switch_btn': 'Polski',
-    'play_btn': 'PLAY', // Nowy tekst
+    'play_btn': 'PLAY',
   };
 
   @override
@@ -65,7 +64,6 @@ class _HelpScreenState extends State<HelpScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        // Jeśli to start, wyświetl "Witaj", jeśli pomoc - "Jak grać?"
         title: Text(
           widget.isFirstLaunch ? content['title']! : content['title_help']!,
           style: const TextStyle(fontWeight: FontWeight.bold),
@@ -73,7 +71,6 @@ class _HelpScreenState extends State<HelpScreen> {
         centerTitle: true,
         backgroundColor: Colors.white,
         elevation: 0,
-        // Ukrywamy przycisk powrotu (X) jeśli to pierwsze uruchomienie
         leading: widget.isFirstLaunch
             ? null
             : IconButton(
@@ -161,7 +158,6 @@ class _HelpScreenState extends State<HelpScreen> {
                       ],
                     ),
                   ),
-                  // Dodatkowy odstęp na dole, żeby przycisk nie zasłaniał tekstu
                   const SizedBox(height: 80),
                 ],
               ),
@@ -194,7 +190,6 @@ class _HelpScreenState extends State<HelpScreen> {
                     ),
                   ),
                   onPressed: () {
-                    // Przechodzimy do gry i "zapominamy" o ekranie startowym (nie da się cofnąć do powitania)
                     Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
