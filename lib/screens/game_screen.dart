@@ -66,14 +66,14 @@ class _GameScreenState extends State<GameScreen> {
   final List<Color> zoneColors = [
     Colors.red[100]!,
     Colors.blue[100]!,
-    Colors.green[100]!,
+    Colors.green[200]!,
     Colors.orange[100]!,
     Colors.purple[100]!,
-    Colors.teal[100]!,
-    Colors.amber[100]!,
+    Colors.cyan[100]!,
+    Colors.yellow[200]!,
     Colors.brown[100]!,
     Colors.pink[100]!,
-    Colors.lime[100]!,
+    Colors.indigo[100]!,
   ];
 
   @override
