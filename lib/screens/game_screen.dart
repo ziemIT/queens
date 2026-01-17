@@ -1,11 +1,10 @@
-import 'dart:convert'; // Do obsługi JSON
+import 'dart:async'; // <--- 1. Potrzebne do Timera
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Do wczytywania assets (rootBundle)
+import 'package:flutter/services.dart';
 
-// 1. Definicja możliwych stanów pola
 enum CellState { empty, queen, cross }
 
-// 2. Model pojedynczego pola
 class CellModel {
   final int row;
   final int col;
@@ -33,18 +32,19 @@ class GameScreen extends StatefulWidget {
 
 class _GameScreenState extends State<GameScreen> {
   // --- KONFIGURACJA ---
-  int gridSize = 8; // Domyślnie 8, ale zaktualizuje się z JSONa
+  int gridSize = 8;
   final bool isDebugging = false;
-
-  // Ważne: Generator zapisuje teraz w folderze 'easy', więc musimy to uwzględnić w ścieżce
   String difficulty = 'easy';
   int currentLevelIndex = 1;
   bool isLoading = true;
 
+  // --- TIMER ---
+  Timer? _timer; // Obiekt timera
+  Duration _elapsed = Duration.zero; // Przechowuje upływ czasu
+
   // --- DANE GRY ---
   List<CellModel> board = [];
 
-  // Paleta kolorów
   final List<Color> zoneColors = [
     Colors.red[100]!,
     Colors.blue[100]!,
@@ -54,7 +54,8 @@ class _GameScreenState extends State<GameScreen> {
     Colors.teal[100]!,
     Colors.amber[100]!,
     Colors.brown[100]!,
-    Colors.pink[100]!, Colors.lime[100]!, // Zapasowe kolory
+    Colors.pink[100]!,
+    Colors.lime[100]!,
   ];
 
   @override
@@ -63,42 +64,67 @@ class _GameScreenState extends State<GameScreen> {
     _loadLevel(currentLevelIndex);
   }
 
-  // Funkcja wczytująca poziom z pliku JSON
+  @override
+  void dispose() {
+    _stopTimer(); // <--- Ważne: Sprzątamy timer przy wyjściu z ekranu
+    super.dispose();
+  }
+
+  // --- OBSŁUGA TIMERA ---
+  void _startTimer() {
+    _stopTimer(); // Reset poprzedniego
+    setState(() {
+      _elapsed = Duration.zero;
+    });
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return;
+      setState(() {
+        _elapsed += const Duration(seconds: 1);
+      });
+    });
+  }
+
+  void _stopTimer() {
+    _timer?.cancel();
+    _timer = null;
+  }
+
+  String _formatTime(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final minutes = twoDigits(duration.inMinutes.remainder(60));
+    final seconds = twoDigits(duration.inSeconds.remainder(60));
+    return "$minutes:$seconds";
+  }
+  // ----------------------
+
   Future<void> _loadLevel(int levelId) async {
+    _stopTimer(); // Zatrzymaj stary timer podczas ładowania
     setState(() {
       isLoading = true;
     });
 
     try {
-      // 1. Wczytaj plik - uwzględniamy folder trudności
       final String jsonString = await rootBundle.loadString(
         'assets/levels/$difficulty/level_$levelId.json',
       );
-
-      // 2. Rozparsowanie JSON
       final data = jsonDecode(jsonString);
 
-      // 3. Pobranie rozmiaru z pliku (zabezpieczenie przed RangeError)
       int newSize = data['size'] ?? 8;
 
-      // 4. Wyciągnięcie stref
       List<List<int>> loadedZones = List<List<int>>.from(
         data['zones'].map((row) => List<int>.from(row)),
       );
 
-      // 5. Rozwiązanie (debug)
       List<dynamic> solutionData = data['solution_queens'];
       Set<String> solutionSet = {};
       for (var point in solutionData) {
         solutionSet.add("${point['row']},${point['col']}");
       }
 
-      // 6. Budowanie planszy
       List<CellModel> newBoard = [];
       for (int row = 0; row < newSize; row++) {
         for (int col = 0; col < newSize; col++) {
           bool isSol = solutionSet.contains("$row,$col");
-
           newBoard.add(
             CellModel(
               row: row,
@@ -117,29 +143,24 @@ class _GameScreenState extends State<GameScreen> {
           currentLevelIndex = levelId;
           isLoading = false;
         });
+        _startTimer(); // <--- Startujemy timer po załadowaniu
       }
     } catch (e) {
-      print("Błąd wczytywania poziomu $levelId: $e");
+      print("Błąd: $e");
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Błąd: Nie znaleziono poziomu $levelId')),
-        );
         setState(() {
-          board = []; // Czyścimy planszę w razie błędu
+          board = [];
           isLoading = false;
         });
       }
     }
   }
 
-  // Funkcja obsługująca kliknięcie
   void _handleTap(int index) {
     if (isLoading) return;
 
     setState(() {
       CellModel cell = board[index];
-
-      // Cykl: Puste -> X -> Królowa -> Puste
       if (cell.state == CellState.empty) {
         cell.state = CellState.cross;
       } else if (cell.state == CellState.cross) {
@@ -150,22 +171,20 @@ class _GameScreenState extends State<GameScreen> {
 
       _validateBoard();
 
-      // Sprawdzamy wygraną PO narysowaniu klatki
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _checkWinCondition();
       });
     });
   }
 
-  // Logika zwycięstwa
   void _checkWinCondition() {
     int queensCount = board
         .where((cell) => cell.state == CellState.queen)
         .length;
     bool hasErrors = board.any((cell) => cell.hasError);
 
-    // Wygrana: tyle królowych co rozmiar planszy I zero błędów
     if (queensCount == gridSize && !hasErrors) {
+      _stopTimer(); // <--- Zatrzymaj czas po wygranej!
       _showWinDialog();
     }
   }
@@ -177,12 +196,13 @@ class _GameScreenState extends State<GameScreen> {
       builder: (context) {
         return AlertDialog(
           title: const Text("Gratulacje! 🎉"),
-          content: const Text("Poziom ukończony!"),
+          // Wyświetlamy czas w komunikacie końcowym
+          content: Text("Poziom ukończony w czasie: ${_formatTime(_elapsed)}"),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                _changeLevel(1); // Idź do następnego poziomu
+                _changeLevel(1);
               },
               child: const Text("Następny poziom"),
             ),
@@ -192,11 +212,9 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  // Nawigacja
   void _changeLevel(int offset) {
     int newLevel = currentLevelIndex + offset;
     if (newLevel < 1) newLevel = 1;
-    // Limit do 50, bo tyle generuje Twój skrypt
     if (newLevel > 50) newLevel = 50;
 
     if (newLevel != currentLevelIndex) {
@@ -209,13 +227,27 @@ class _GameScreenState extends State<GameScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text(
-          'Level $currentLevelIndex',
-          style: const TextStyle(
-            fontSize: 32.0,
-            // fontWeight: FontWeight.bold,
-            color: Colors.black,
-          ),
+        // Zmieniliśmy Title na Column, żeby zmieścić Czas pod spodem
+        title: Column(
+          children: [
+            Text(
+              'Level $currentLevelIndex',
+              style: const TextStyle(
+                fontSize: 24.0, // Trochę mniejszy Level, żeby zmieścić czas
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
+            ),
+            // --- WYŚWIETLANIE CZASU ---
+            Text(
+              _formatTime(_elapsed),
+              style: const TextStyle(
+                fontSize: 18.0,
+                color: Colors.grey, // Szary kolor dla kontrastu
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
         ),
         centerTitle: true,
         backgroundColor: Colors.white,
@@ -233,8 +265,7 @@ class _GameScreenState extends State<GameScreen> {
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
-          : board
-                .isEmpty // <--- ZABEZPIECZENIE: Czy plansza jest pusta?
+          : board.isEmpty
           ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -263,7 +294,6 @@ class _GameScreenState extends State<GameScreen> {
                       crossAxisSpacing: 0,
                       mainAxisSpacing: 0,
                     ),
-                    // Używamy board.length zamiast mnożenia, żeby uniknąć RangeError
                     itemCount: board.length,
                     itemBuilder: (context, index) {
                       if (index >= board.length) return const SizedBox();
@@ -288,16 +318,9 @@ class _GameScreenState extends State<GameScreen> {
       child: Container(
         decoration: BoxDecoration(
           color: cellColor,
-          // Usunąłem borderRadius, żeby siatka była ostra jak w Star Battle
-          // borderRadius: BorderRadius.circular(4),
-
-          // --- NOWE GRANICE ---
           border: cell.hasError
-              ? Border.all(color: Colors.red, width: 3) // Błąd = Gruba Czerwona
-              : Border.all(
-                  color: Colors.black,
-                  width: 0.5,
-                ), // Normalnie = Cienka Czarna
+              ? Border.all(color: Colors.red, width: 3)
+              : Border.all(color: Colors.black, width: 0.5),
         ),
         child: Center(child: _buildIcon(cell)),
       ),
@@ -310,20 +333,15 @@ class _GameScreenState extends State<GameScreen> {
         return Icon(
           Icons.star,
           color: cell.hasError ? Colors.red : Colors.black,
-          size: 36, // <--- ZWIĘKSZONE (było 24)
+          size: 36,
         );
       case CellState.cross:
-        return const Icon(
-          Icons.close,
-          color: Colors.black54,
-          size: 28, // <--- ZWIĘKSZONE (było 16)
-        );
+        return const Icon(Icons.close, color: Colors.black54, size: 28);
       default:
         return const SizedBox.shrink();
     }
   }
 
-  // --- LOGIKA WALIDACJI ---
   void _validateBoard() {
     for (var cell in board) cell.hasError = false;
 
