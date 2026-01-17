@@ -43,7 +43,11 @@ class GameScreen extends StatefulWidget {
 }
 
 class _GameScreenState extends State<GameScreen> {
-  // --- KONFIGURACJA ---
+  // --- ZMIENNE DO PRZECIĄGANIA (DRAG) ---
+  CellState? _dragTargetState; // Jaki stan nakładamy? (np. malujemy same X)
+  int _lastDragIndex =
+      -1; // Indeks ostatnio dotkniętego pola (żeby nie mrugało)
+
   int gridSize = 8;
   final bool isDebugging = false;
   String difficulty = 'easy';
@@ -206,27 +210,27 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
-  void _handleTap(int index) {
-    if (isLoading) return;
-    _saveToHistory();
+  // void _handleTap(int index) {
+  //   if (isLoading) return;
+  //   _saveToHistory();
 
-    setState(() {
-      CellModel cell = board[index];
-      if (cell.state == CellState.empty) {
-        cell.state = CellState.cross;
-      } else if (cell.state == CellState.cross) {
-        cell.state = CellState.queen;
-      } else {
-        cell.state = CellState.empty;
-      }
+  //   setState(() {
+  //     CellModel cell = board[index];
+  //     if (cell.state == CellState.empty) {
+  //       cell.state = CellState.cross;
+  //     } else if (cell.state == CellState.cross) {
+  //       cell.state = CellState.queen;
+  //     } else {
+  //       cell.state = CellState.empty;
+  //     }
 
-      _validateBoard();
+  //     _validateBoard();
 
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _checkWinCondition();
-      });
-    });
-  }
+  //     WidgetsBinding.instance.addPostFrameCallback((_) {
+  //       _checkWinCondition();
+  //     });
+  //   });
+  // }
 
   void _checkWinCondition() {
     int queensCount = board
@@ -363,18 +367,50 @@ class _GameScreenState extends State<GameScreen> {
                       padding: const EdgeInsets.all(16.0),
                       child: AspectRatio(
                         aspectRatio: 1.0,
-                        child: GridView.builder(
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate:
-                              SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: gridSize,
-                                crossAxisSpacing: 0,
-                                mainAxisSpacing: 0,
+                        // LayoutBuilder daje nam dostęp do wymiarów (constraints)
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            return GestureDetector(
+                              // START GESTU: Resetujemy zmienne i przetwarzamy pierwsze pole
+                              onPanStart: (details) {
+                                _dragTargetState = null;
+                                _lastDragIndex = -1;
+                                _processDragInput(
+                                  details.localPosition,
+                                  constraints.maxWidth,
+                                );
+                              },
+                              // RUCH PALCA: Aktualizujemy kolejne pola
+                              onPanUpdate: (details) {
+                                _processDragInput(
+                                  details.localPosition,
+                                  constraints.maxWidth,
+                                );
+                              },
+                              // KONIEC GESTU: Zapisujemy historię (dla przycisku Cofnij)
+                              onPanEnd: (details) {
+                                _saveToHistory();
+                                _dragTargetState = null;
+                                _lastDragIndex = -1;
+                              },
+
+                              child: GridView.builder(
+                                // Wyłączamy przewijanie GridView, żeby nie kłóciło się z naszym gestem
+                                physics: const NeverScrollableScrollPhysics(),
+                                gridDelegate:
+                                    SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: gridSize,
+                                      crossAxisSpacing: 0,
+                                      mainAxisSpacing: 0,
+                                    ),
+                                itemCount: board.length,
+                                itemBuilder: (context, index) {
+                                  if (index >= board.length)
+                                    return const SizedBox();
+                                  return _buildCell(board[index], index);
+                                },
                               ),
-                          itemCount: board.length,
-                          itemBuilder: (context, index) {
-                            if (index >= board.length) return const SizedBox();
-                            return _buildCell(board[index], index);
+                            );
                           },
                         ),
                       ),
@@ -399,15 +435,6 @@ class _GameScreenState extends State<GameScreen> {
                         textColor: Colors.black,
                         onPressed: _history.isNotEmpty ? _undo : null,
                       ),
-
-                      // #TODO: Paid feature :)
-                      // _buildActionButton(
-                      //   icon: Icons.refresh,
-                      //   label: "Restart level",
-                      //   color: Colors.blue[50]!,
-                      //   textColor: Colors.blue,
-                      //   onPressed: _restartLevel,
-                      // ),
                       _buildActionButton(
                         icon: Icons.delete_outline,
                         label: "Clear",
@@ -437,14 +464,10 @@ class _GameScreenState extends State<GameScreen> {
         backgroundColor: color,
         foregroundColor: textColor,
         elevation: 0,
-        padding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 12,
-        ), // Mniejszy padding żeby się zmieściły 3
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       child: Column(
-        // Używamy kolumny dla ikonki nad tekstem (lepsze dla 3 przycisków)
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 24),
@@ -481,17 +504,15 @@ class _GameScreenState extends State<GameScreen> {
       cellColor = HSLColor.fromColor(cellColor).withLightness(0.6).toColor();
     }
 
-    return GestureDetector(
-      onTap: () => _handleTap(index),
-      child: Container(
-        decoration: BoxDecoration(
-          color: cellColor,
-          border: cell.hasError
-              ? Border.all(color: Colors.red, width: 3)
-              : Border.all(color: Colors.black, width: 0.5),
-        ),
-        child: Center(child: _buildIcon(cell)),
+    // USUNIĘTO: GestureDetector (teraz obsługa jest w głównym Gridzie)
+    return Container(
+      decoration: BoxDecoration(
+        color: cellColor,
+        border: cell.hasError
+            ? Border.all(color: Colors.red, width: 3)
+            : Border.all(color: Colors.black, width: 0.5),
       ),
+      child: Center(child: _buildIcon(cell)),
     );
   }
 
@@ -564,5 +585,51 @@ class _GameScreenState extends State<GameScreen> {
         }
       }
     }
+  }
+
+  void _processDragInput(Offset localPosition, double boardPixelSize) {
+    // 1. Obliczamy szerokość jednego kafelka w pikselach
+    double cellSize = boardPixelSize / gridSize;
+
+    // 2. Obliczamy, w który wiersz i kolumnę trafił palec
+    int col = (localPosition.dx / cellSize).floor();
+    int row = (localPosition.dy / cellSize).floor();
+
+    // 3. Zabezpieczenie przed wyjściem poza planszę
+    if (col < 0 || col >= gridSize || row < 0 || row >= gridSize) return;
+
+    // 4. Zamieniamy na indeks w liście (0..63)
+    int index = row * gridSize + col;
+
+    // 5. Optymalizacja: Jeśli wciąż jesteśmy nad tym samym polem, nic nie rób
+    if (index == _lastDragIndex) return;
+    _lastDragIndex = index;
+
+    // 6. Aplikujemy zmianę
+    setState(() {
+      CellModel cell = board[index];
+
+      // Jeśli to początek gestu (_dragTargetState jest null), ustalamy co malujemy
+      // na podstawie pierwszego dotkniętego pola (cykl: Empty->Cross->Queen->Empty)
+      if (_dragTargetState == null) {
+        if (cell.state == CellState.empty) {
+          _dragTargetState = CellState.cross;
+        } else if (cell.state == CellState.cross) {
+          _dragTargetState = CellState.queen;
+        } else {
+          _dragTargetState = CellState.empty;
+        }
+      }
+
+      // Przypisujemy ustalony stan do obecnego pola
+      cell.state = _dragTargetState!;
+
+      _validateBoard();
+
+      // Sprawdzamy wygraną (po klatce, żeby nie zacinało animacji)
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _checkWinCondition();
+      });
+    });
   }
 }
