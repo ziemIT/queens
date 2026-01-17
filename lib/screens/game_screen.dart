@@ -1,8 +1,8 @@
-import 'dart:async';
+import 'dart:async'; // Potrzebne do Timera
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'help_screen.dart';
+import 'help_screen.dart'; // Upewnij się, że ten import tu jest
 
 enum CellState { empty, queen, cross }
 
@@ -43,28 +43,35 @@ class GameScreen extends StatefulWidget {
 }
 
 class _GameScreenState extends State<GameScreen> {
+  // --- KONFIGURACJA ---
   int gridSize = 8;
   final bool isDebugging = false;
   String difficulty = 'easy';
   int currentLevelIndex = 1;
   bool isLoading = true;
+
   int maxUnlockedLevel = 1;
+
+  // --- TIMER ---
   Timer? _timer;
   Duration _elapsed = Duration.zero;
+
+  // --- DANE GRY ---
   List<CellModel> board = [];
   List<List<CellModel>> _history = [];
 
+  // --- KOLORY (Zaktualizowane) ---
   final List<Color> zoneColors = [
     Colors.red[100]!,
     Colors.blue[100]!,
-    Colors.green[200]!,
+    Colors.green[200]!, // Bardziej trawiasty
     Colors.orange[100]!,
     Colors.purple[100]!,
-    Colors.cyan[100]!,
-    Colors.yellow[200]!,
+    Colors.cyan[100]!, // Mniej zielony niż Teal
+    Colors.yellow[200]!, // Wyraźniejszy żółty
     Colors.brown[100]!,
     Colors.pink[100]!,
-    Colors.indigo[100]!,
+    Colors.indigo[100]!, // Zamiast Lime
   ];
 
   @override
@@ -81,9 +88,8 @@ class _GameScreenState extends State<GameScreen> {
 
   // --- OBSŁUGA TIMERA ---
   void _startTimer() {
-    _stopTimer(); // Upewniamy się, że nie ma dwóch timerów
-    //setState(() { _elapsed = Duration.zero; });
-
+    _stopTimer();
+    // Nie zerujemy tutaj czasu, żeby móc wznawiać (np. po wyjściu z pomocy)
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return;
       setState(() {
@@ -110,7 +116,8 @@ class _GameScreenState extends State<GameScreen> {
     _stopTimer();
     setState(() {
       isLoading = true;
-      _elapsed = Duration.zero;
+      _elapsed =
+          Duration.zero; // Zerowanie czasu przy ładowaniu nowego/restartowaniu
     });
 
     try {
@@ -166,7 +173,15 @@ class _GameScreenState extends State<GameScreen> {
     }
   }
 
-  // --- HISTORIA (UNDO/CLEAR) ---
+  // --- AKCJE GRACZA ---
+
+  // NOWE: Funkcja restartu
+  void _restartLevel() {
+    // Po prostu ładujemy ten sam poziom od nowa.
+    // To automatycznie wyczyści planszę, historię i zresetuje czas.
+    _loadLevel(currentLevelIndex);
+  }
+
   void _saveToHistory() {
     List<CellModel> snapshot = board.map((cell) => cell.copy()).toList();
     _history.add(snapshot);
@@ -237,15 +252,23 @@ class _GameScreenState extends State<GameScreen> {
       barrierDismissible: false,
       builder: (context) {
         return AlertDialog(
-          title: const Text("Congrats! 🎉"),
-          content: Text("Level finished in: ${_formatTime(_elapsed)}"),
+          title: const Text("Gratulacje! 🎉"),
+          content: Text("Poziom ukończony w czasie: ${_formatTime(_elapsed)}"),
           actions: [
+            // Dodano opcję "Zagraj ponownie" w oknie wygranej, żeby poprawić wynik
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _restartLevel();
+              },
+              child: const Text("Popraw wynik"),
+            ),
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
                 _changeLevel(1);
               },
-              child: const Text("Next level"),
+              child: const Text("Następny poziom"),
             ),
           ],
         );
@@ -258,7 +281,9 @@ class _GameScreenState extends State<GameScreen> {
 
     if (newLevel < 1) newLevel = 1;
     if (newLevel > 50) newLevel = 50;
+
     if (newLevel > maxUnlockedLevel) return;
+
     if (newLevel != currentLevelIndex) {
       _loadLevel(newLevel);
     }
@@ -305,16 +330,14 @@ class _GameScreenState extends State<GameScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.help_outline, color: Colors.blueAccent),
-            tooltip: 'Help',
+            tooltip: 'Pomoc',
             onPressed: () async {
               _stopTimer();
-
               await Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const HelpScreen()),
               );
-
-              if (mounted && !board.isEmpty) {
+              if (mounted && board.isNotEmpty) {
                 _startTimer();
               }
             },
@@ -358,40 +381,39 @@ class _GameScreenState extends State<GameScreen> {
                     ),
                   ),
                 ),
+
+                // --- PASEK NARZĘDZI (Zaktualizowany) ---
                 Padding(
                   padding: const EdgeInsets.only(
                     bottom: 30.0,
-                    left: 20,
-                    right: 20,
+                    left: 10,
+                    right: 10,
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      ElevatedButton.icon(
+                      _buildActionButton(
+                        icon: Icons.undo,
+                        label: "Undo",
+                        color: Colors.grey[200]!,
+                        textColor: Colors.black,
                         onPressed: _history.isNotEmpty ? _undo : null,
-                        icon: const Icon(Icons.undo),
-                        label: const Text("Undo"),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.grey[200],
-                          foregroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 12,
-                          ),
-                        ),
                       ),
-                      ElevatedButton.icon(
+
+                      // #TODO: Paid feature :)
+                      // _buildActionButton(
+                      //   icon: Icons.refresh,
+                      //   label: "Restart level",
+                      //   color: Colors.blue[50]!,
+                      //   textColor: Colors.blue,
+                      //   onPressed: _restartLevel,
+                      // ),
+                      _buildActionButton(
+                        icon: Icons.delete_outline,
+                        label: "Clear",
+                        color: Colors.red[50]!,
+                        textColor: Colors.red,
                         onPressed: _clearBoard,
-                        icon: const Icon(Icons.delete_outline),
-                        label: const Text("Clear"),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red[50],
-                          foregroundColor: Colors.red,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 12,
-                          ),
-                        ),
                       ),
                     ],
                   ),
@@ -401,19 +423,51 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
+  // Pomocniczy widget, żeby kod był czystszy (DRY principle)
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required Color textColor,
+    VoidCallback? onPressed,
+  }) {
+    return ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: textColor,
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 12,
+        ), // Mniejszy padding żeby się zmieściły 3
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      child: Column(
+        // Używamy kolumny dla ikonki nad tekstem (lepsze dla 3 przycisków)
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 24),
+          const SizedBox(height: 4),
+          Text(label, style: const TextStyle(fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
   Widget _buildErrorView() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const Text(
-            "Error: Missing level data.",
+            "Błąd: Brak danych poziomu.",
             style: TextStyle(color: Colors.red),
           ),
           const SizedBox(height: 20),
           ElevatedButton(
             onPressed: () => _loadLevel(currentLevelIndex),
-            child: const Text("Try again"),
+            child: const Text("Spróbuj ponownie"),
           ),
         ],
       ),
@@ -456,6 +510,7 @@ class _GameScreenState extends State<GameScreen> {
     }
   }
 
+  // --- WALIDACJA ---
   void _validateBoard() {
     for (var cell in board) cell.hasError = false;
 
