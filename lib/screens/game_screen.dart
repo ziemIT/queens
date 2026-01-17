@@ -90,10 +90,9 @@ class _GameScreenState extends State<GameScreen> {
 
   // --- OBSŁUGA TIMERA ---
   void _startTimer() {
-    _stopTimer();
-    setState(() {
-      _elapsed = Duration.zero;
-    });
+    _stopTimer(); // Upewniamy się, że nie ma dwóch timerów
+    // USUNIĘTO: setState(() { _elapsed = Duration.zero; }); <--- To kasowało czas!
+
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return;
       setState(() {
@@ -120,6 +119,8 @@ class _GameScreenState extends State<GameScreen> {
     _stopTimer();
     setState(() {
       isLoading = true;
+      _elapsed = Duration
+          .zero; // <--- PRZENIESIONO TUTAJ: Zerujemy czas tylko przy nowym poziomie
     });
 
     try {
@@ -322,13 +323,24 @@ class _GameScreenState extends State<GameScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.help_outline, color: Colors.blueAccent),
-            tooltip: 'Help', // Opcjonalnie: podpowiedź po przytrzymaniu
-            onPressed: () {
-              // To jest komenda otwierająca nowy ekran
-              Navigator.push(
+            tooltip: 'Help',
+            onPressed: () async {
+              // <--- Dodaj 'async'
+
+              // 1. PAUZA: Zatrzymujemy czas
+              _stopTimer();
+
+              // 2. CZEKAMY: Aplikacja czeka w tej linii, aż zamkniesz okno pomocy
+              await Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const HelpScreen()),
               );
+
+              // 3. START: Wznawiamy czas (funkcja już nie zeruje licznika)
+              // Sprawdzamy też, czy gra nie została w międzyczasie wygrana/zakończona
+              if (mounted && !board.isEmpty) {
+                _startTimer();
+              }
             },
           ),
           IconButton(
