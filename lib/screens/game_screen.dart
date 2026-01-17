@@ -243,9 +243,7 @@ class _GameScreenState extends State<GameScreen> {
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                _changeLevel(
-                  1,
-                );
+                _changeLevel(1);
               },
               child: const Text("Next level"),
             ),
