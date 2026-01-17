@@ -209,7 +209,14 @@ class _GameScreenState extends State<GameScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text('Level $currentLevelIndex'),
+        title: Text(
+          'Level $currentLevelIndex',
+          style: const TextStyle(
+            fontSize: 32.0,
+            // fontWeight: FontWeight.bold,
+            color: Colors.black,
+          ),
+        ),
         centerTitle: true,
         backgroundColor: Colors.white,
         elevation: 0,
@@ -253,8 +260,8 @@ class _GameScreenState extends State<GameScreen> {
                     physics: const NeverScrollableScrollPhysics(),
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: gridSize,
-                      crossAxisSpacing: 1,
-                      mainAxisSpacing: 1,
+                      crossAxisSpacing: 0,
+                      mainAxisSpacing: 0,
                     ),
                     // Używamy board.length zamiast mnożenia, żeby uniknąć RangeError
                     itemCount: board.length,
@@ -281,10 +288,16 @@ class _GameScreenState extends State<GameScreen> {
       child: Container(
         decoration: BoxDecoration(
           color: cellColor,
-          borderRadius: BorderRadius.circular(4),
+          // Usunąłem borderRadius, żeby siatka była ostra jak w Star Battle
+          // borderRadius: BorderRadius.circular(4),
+
+          // --- NOWE GRANICE ---
           border: cell.hasError
-              ? Border.all(color: Colors.red, width: 3)
-              : null,
+              ? Border.all(color: Colors.red, width: 3) // Błąd = Gruba Czerwona
+              : Border.all(
+                  color: Colors.black,
+                  width: 0.5,
+                ), // Normalnie = Cienka Czarna
         ),
         child: Center(child: _buildIcon(cell)),
       ),
@@ -297,10 +310,14 @@ class _GameScreenState extends State<GameScreen> {
         return Icon(
           Icons.star,
           color: cell.hasError ? Colors.red : Colors.black,
-          size: 24,
+          size: 36, // <--- ZWIĘKSZONE (było 24)
         );
       case CellState.cross:
-        return const Icon(Icons.close, color: Colors.black38, size: 16);
+        return const Icon(
+          Icons.close,
+          color: Colors.black54,
+          size: 28, // <--- ZWIĘKSZONE (było 16)
+        );
       default:
         return const SizedBox.shrink();
     }
