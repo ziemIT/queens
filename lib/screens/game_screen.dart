@@ -1,4 +1,4 @@
-import 'dart:async'; // Potrzebne do Timera
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -22,7 +22,6 @@ class CellModel {
     this.isSolution = false,
   });
 
-  // NOWE: Metoda do kopiowania obiektu (potrzebna do Undo)
   CellModel copy() {
     return CellModel(
       row: row,
@@ -50,6 +49,9 @@ class _GameScreenState extends State<GameScreen> {
   int currentLevelIndex = 1;
   bool isLoading = true;
 
+  // NOWE: Najwyższy odblokowany poziom (domyślnie 1)
+  int maxUnlockedLevel = 1;
+
   // --- TIMER ---
   Timer? _timer;
   Duration _elapsed = Duration.zero;
@@ -57,7 +59,7 @@ class _GameScreenState extends State<GameScreen> {
   // --- DANE GRY ---
   List<CellModel> board = [];
 
-  // NOWE: Historia ruchów
+  // Historia ruchów
   List<List<CellModel>> _history = [];
 
   final List<Color> zoneColors = [
@@ -104,7 +106,6 @@ class _GameScreenState extends State<GameScreen> {
     _timer = null;
   }
 
-  // POPRAWIONE: Obsługa wartości null (naprawia błąd TypeError)
   String _formatTime(Duration? duration) {
     final d = duration ?? Duration.zero;
     String twoDigits(int n) => n.toString().padLeft(2, '0');
@@ -158,7 +159,7 @@ class _GameScreenState extends State<GameScreen> {
           board = newBoard;
           currentLevelIndex = levelId;
           isLoading = false;
-          _history.clear(); // NOWE: Czyść historię przy nowym poziomie
+          _history.clear();
         });
         _startTimer();
       }
@@ -173,28 +174,23 @@ class _GameScreenState extends State<GameScreen> {
     }
   }
 
-  // --- NOWE: FUNKCJE HISTORII (UNDO/CLEAR) ---
+  // --- HISTORIA (UNDO/CLEAR) ---
   void _saveToHistory() {
-    // Tworzymy kopię obecnego stanu
     List<CellModel> snapshot = board.map((cell) => cell.copy()).toList();
     _history.add(snapshot);
-
-    // Limit historii do 50 ruchów (optymalizacja pamięci)
-    if (_history.length > 50) {
-      _history.removeAt(0);
-    }
+    if (_history.length > 50) _history.removeAt(0);
   }
 
   void _undo() {
     if (_history.isEmpty) return;
     setState(() {
       board = _history.removeLast();
-      _validateBoard(); // Walidacja po cofnięciu
+      _validateBoard();
     });
   }
 
   void _clearBoard() {
-    _saveToHistory(); // Zapisz stan przed wyczyszczeniem (żeby można było cofnąć)
+    _saveToHistory();
     setState(() {
       for (var cell in board) {
         cell.state = CellState.empty;
@@ -205,8 +201,6 @@ class _GameScreenState extends State<GameScreen> {
 
   void _handleTap(int index) {
     if (isLoading) return;
-
-    // NOWE: Zapisz stan przed zmianą
     _saveToHistory();
 
     setState(() {
@@ -240,18 +234,27 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _showWinDialog() {
+    // NOWE: Jeśli wygraliśmy na obecnym max poziomie, odblokuj następny
+    if (currentLevelIndex == maxUnlockedLevel && maxUnlockedLevel < 50) {
+      setState(() {
+        maxUnlockedLevel++;
+      });
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) {
         return AlertDialog(
           title: const Text("Congrats! 🎉"),
-          content: Text("Level completed in: ${_formatTime(_elapsed)}"),
+          content: Text("Level finished in: ${_formatTime(_elapsed)}"),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                _changeLevel(1);
+                _changeLevel(
+                  1,
+                ); // To zadziała, bo maxUnlockedLevel został zwiększony
               },
               child: const Text("Next level"),
             ),
@@ -263,8 +266,13 @@ class _GameScreenState extends State<GameScreen> {
 
   void _changeLevel(int offset) {
     int newLevel = currentLevelIndex + offset;
+
+    // Walidacja zakresu
     if (newLevel < 1) newLevel = 1;
     if (newLevel > 50) newLevel = 50;
+
+    // NOWE: Nie pozwalaj przejść powyżej odblokowanego poziomu
+    if (newLevel > maxUnlockedLevel) return;
 
     if (newLevel != currentLevelIndex) {
       _loadLevel(newLevel);
@@ -273,6 +281,10 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Sprawdzamy czy możemy iść dalej (dla koloru strzałki)
+    bool canGoNext =
+        currentLevelIndex < maxUnlockedLevel && currentLevelIndex < 50;
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -300,13 +312,20 @@ class _GameScreenState extends State<GameScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
-          onPressed: () => _changeLevel(-1),
+          icon: Icon(
+            Icons.arrow_back_ios,
+            color: currentLevelIndex > 1 ? Colors.black : Colors.grey[300],
+          ),
+          onPressed: currentLevelIndex > 1 ? () => _changeLevel(-1) : null,
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.arrow_forward_ios, color: Colors.black),
-            onPressed: () => _changeLevel(1),
+            icon: Icon(
+              Icons.arrow_forward_ios,
+              // NOWE: Szara strzałka jeśli nie odblokowano następnego
+              color: canGoNext ? Colors.black : Colors.grey[300],
+            ),
+            onPressed: canGoNext ? () => _changeLevel(1) : null,
           ),
         ],
       ),
@@ -316,7 +335,6 @@ class _GameScreenState extends State<GameScreen> {
           ? _buildErrorView()
           : Column(
               children: [
-                // --- PLANSZA ---
                 Expanded(
                   child: Center(
                     child: Padding(
@@ -341,8 +359,6 @@ class _GameScreenState extends State<GameScreen> {
                     ),
                   ),
                 ),
-
-                // --- PRZYCISKI UNDO / CLEAR ---
                 Padding(
                   padding: const EdgeInsets.only(
                     bottom: 30.0,
