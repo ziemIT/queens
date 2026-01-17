@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'screens/game_screen.dart';
+import 'screens/help_screen.dart';
 
 void main() {
   runApp(const QueensApp());
@@ -17,7 +18,7 @@ class QueensApp extends StatelessWidget {
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
       ),
-      home: const GameScreen(),
+      home: const HelpScreen(isFirstLaunch: true),
     );
   }
 }

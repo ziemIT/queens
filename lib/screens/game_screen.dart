@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'help_screen.dart';
 
 enum CellState { empty, queen, cross }
 
@@ -319,6 +320,17 @@ class _GameScreenState extends State<GameScreen> {
           onPressed: currentLevelIndex > 1 ? () => _changeLevel(-1) : null,
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.help_outline, color: Colors.blueAccent),
+            tooltip: 'Help', // Opcjonalnie: podpowiedź po przytrzymaniu
+            onPressed: () {
+              // To jest komenda otwierająca nowy ekran
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const HelpScreen()),
+              );
+            },
+          ),
           IconButton(
             icon: Icon(
               Icons.arrow_forward_ios,
